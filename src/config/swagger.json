@@ -1,0 +1,599 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "MikeApp API",
+    "version": "1.1.0",
+    "description": "API REST para el control de salud (glucosa, peso corporal) y finanzas personales con soporte para múltiples objetivos de ahorro."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api/v1",
+      "description": "Servidor de desarrollo local"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "User": {
+        "type": "object",
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string" },
+          "email": { "type": "string" },
+          "createdAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Glucose": {
+        "type": "object",
+        "required": ["value", "unit", "date", "time", "phase"],
+        "properties": {
+          "_id": { "type": "string" },
+          "value": { "type": "number", "description": "Nivel de glucosa" },
+          "unit": { "type": "string", "enum": ["mg/dL", "mmol/L"] },
+          "date": { "type": "string", "format": "date" },
+          "time": { "type": "string", "example": "08:30" },
+          "phase": { "type": "string", "enum": ["Ayunas", "Antes de comer", "Después de comer", "Antes de dormir", "Otro"] },
+          "notes": { "type": "string" }
+        }
+      },
+      "BodyComposition": {
+        "type": "object",
+        "required": ["type", "weight", "waist", "neck", "hip", "date"],
+        "properties": {
+          "_id": { "type": "string" },
+          "type": { "type": "string", "enum": ["weekly", "nutritionist"] },
+          "weight": { "type": "number", "description": "Peso en kg" },
+          "waist": { "type": "number", "description": "Cintura en cm" },
+          "neck": { "type": "number", "description": "Cuello en cm" },
+          "hip": { "type": "number", "description": "Cadera en cm" },
+          "date": { "type": "string", "format": "date" },
+          "notes": { "type": "string" },
+          "fatPercentage": { "type": "number", "description": "Requerido si type=nutritionist" },
+          "muscleMass": { "type": "number", "description": "Requerido si type=nutritionist" },
+          "visceralFat": { "type": "number", "description": "Requerido si type=nutritionist" },
+          "metabolicAge": { "type": "number", "description": "Requerido si type=nutritionist" },
+          "bmi": { "type": "number", "description": "Requerido si type=nutritionist" }
+        }
+      },
+      "SavingsObjective": {
+        "type": "object",
+        "required": ["name", "targetAmount"],
+        "properties": {
+          "_id": { "type": "string" },
+          "name": { "type": "string", "example": "PC Gamer" },
+          "description": { "type": "string", "example": "Comprar laptop de gama alta" },
+          "targetAmount": { "type": "number", "example": 20000 },
+          "targetDate": { "type": "string", "format": "date", "example": "2026-10-15" },
+          "status": { "type": "string", "enum": ["in_progress", "completed", "paused", "cancelled"], "default": "in_progress" }
+        }
+      },
+      "SavingsDistribution": {
+        "type": "object",
+        "required": ["objective", "amount"],
+        "properties": {
+          "objective": { "type": "string", "description": "ID del objetivo de ahorro" },
+          "amount": { "type": "number", "description": "Monto asignado" }
+        }
+      },
+      "SavingsTransaction": {
+        "type": "object",
+        "required": ["amount", "distributions"],
+        "properties": {
+          "_id": { "type": "string" },
+          "amount": { "type": "number", "example": 5000 },
+          "date": { "type": "string", "format": "date", "example": "2026-06-10" },
+          "notes": { "type": "string", "example": "Ahorro quincenal" },
+          "distributions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/SavingsDistribution" }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/auth/register": {
+      "post": {
+        "summary": "Registrar un nuevo usuario",
+        "tags": ["Autenticación"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "email", "password"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "email": { "type": "string" },
+                  "password": { "type": "string", "minLength": 6 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Usuario registrado exitosamente",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": { "$ref": "#/components/schemas/User" },
+                        "token": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "summary": "Iniciar sesión de usuario",
+        "tags": ["Autenticación"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password"],
+                "properties": {
+                  "email": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login correcto, devuelve el token JWT",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": { "$ref": "#/components/schemas/User" },
+                        "token": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Obtener perfil del usuario actual",
+        "tags": ["Autenticación"],
+        "responses": {
+          "200": {
+            "description": "Datos del perfil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "user": { "$ref": "#/components/schemas/User" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/glucose": {
+      "get": {
+        "summary": "Listar todos los registros de glucosa del usuario",
+        "tags": ["Glucosa"],
+        "responses": {
+          "200": {
+            "description": "Lista de registros",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "results": { "type": "integer" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "records": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Glucose" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear un nuevo registro de glucosa",
+        "tags": ["Glucosa"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Glucose" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registro creado exitosamente"
+          }
+        }
+      }
+    },
+    "/glucose/{id}": {
+      "get": {
+        "summary": "Obtener un registro de glucosa por ID",
+        "tags": ["Glucosa"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle del registro" }
+        }
+      },
+      "put": {
+        "summary": "Actualizar un registro de glucosa por ID",
+        "tags": ["Glucosa"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Glucose" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Registro actualizado" }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar un registro de glucosa por ID",
+        "tags": ["Glucosa"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Registro eliminado" }
+        }
+      }
+    },
+    "/body-composition": {
+      "get": {
+        "summary": "Listar todos los registros de composición corporal del usuario",
+        "tags": ["Composición Corporal"],
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "description": "Filtrar por tipo de registro ('weekly' o 'nutritionist')",
+            "required": false,
+            "schema": { "type": "string", "enum": ["weekly", "nutritionist"] }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de registros",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "records": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/BodyComposition" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear un nuevo registro de composición corporal (semanal o nutrióloga)",
+        "tags": ["Composición Corporal"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BodyComposition" }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Registro creado" }
+        }
+      }
+    },
+    "/body-composition/{id}": {
+      "get": {
+        "summary": "Obtener un registro corporal por ID",
+        "tags": ["Composición Corporal"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle del registro" }
+        }
+      },
+      "put": {
+        "summary": "Actualizar un registro corporal por ID",
+        "tags": ["Composición Corporal"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BodyComposition" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Registro actualizado" }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar un registro corporal por ID",
+        "tags": ["Composición Corporal"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Registro eliminado" }
+        }
+      }
+    },
+    "/savings/dashboard": {
+      "get": {
+        "summary": "Obtener métricas agregadas del dashboard de ahorros",
+        "tags": ["Ahorros"],
+        "responses": {
+          "200": {
+            "description": "Métricas globales y listas de objetivos y transacciones",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "totalSaved": { "type": "number" },
+                        "totalCommitted": { "type": "number" },
+                        "totalPending": { "type": "number" },
+                        "activeCount": { "type": "number" },
+                        "completedCount": { "type": "number" },
+                        "globalProgress": { "type": "number" },
+                        "objectives": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/SavingsObjective" }
+                        },
+                        "transactions": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/SavingsTransaction" }
+                        },
+                        "monthlyTrend": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "Ahorro": { "type": "number" }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/savings/objectives": {
+      "get": {
+        "summary": "Listar todos los objetivos de ahorro",
+        "tags": ["Ahorros"],
+        "responses": {
+          "200": {
+            "description": "Lista de objetivos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "$ref": "#/components/schemas/SavingsObjective" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear un nuevo objetivo de ahorro",
+        "tags": ["Ahorros"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SavingsObjective" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Objetivo de ahorro creado"
+          }
+        }
+      }
+    },
+    "/savings/objectives/{id}": {
+      "get": {
+        "summary": "Obtener un objetivo de ahorro por ID",
+        "tags": ["Ahorros"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle del objetivo" }
+        }
+      },
+      "put": {
+        "summary": "Actualizar un objetivo de ahorro por ID",
+        "tags": ["Ahorros"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SavingsObjective" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Objetivo actualizado" }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar un objetivo de ahorro por ID",
+        "tags": ["Ahorros"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Objetivo eliminado" }
+        }
+      }
+    },
+    "/savings/transactions": {
+      "get": {
+        "summary": "Listar todas las transacciones/aportaciones de ahorro",
+        "tags": ["Ahorros"],
+        "responses": {
+          "200": {
+            "description": "Lista de transacciones"
+          }
+        }
+      },
+      "post": {
+        "summary": "Registrar una nueva aportación con su distribución",
+        "tags": ["Ahorros"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SavingsTransaction" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Aportación registrada"
+          }
+        }
+      }
+    },
+    "/savings/transactions/{id}": {
+      "get": {
+        "summary": "Obtener una transacción por ID",
+        "tags": ["Ahorros"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Detalle de la transacción" }
+        }
+      },
+      "put": {
+        "summary": "Actualizar una transacción por ID (validación de distribución)",
+        "tags": ["Ahorros"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SavingsTransaction" }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Transacción actualizada" }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar una transacción por ID",
+        "tags": ["Ahorros"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "204": { "description": "Transacción eliminada" }
+        }
+      }
+    }
+  }
+}

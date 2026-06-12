@@ -1,0 +1,41 @@
+# Dependencias
+node_modules/
+
+# Configuración y Secretos Locales
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Archivos de Registro (Logs)
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Cobertura de Pruebas (Tests & Coverage)
+coverage/
+.nyc_output/
+
+# Cachés y Datos en Tiempo de Ejecución
+.npm
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# Configuraciones de IDEs y Editores
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Archivos del Sistema Operativo
+.DS_Store
+Thumbs.db
